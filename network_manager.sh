@@ -13,15 +13,6 @@
 # -> loop [func name] [times] [timeout]
 # -> retry [func name] [times]
 
-if [ -z $1 ]; then
-    echo "usage: ./network_manager.sh [Action]"
-    echo "Action: auto-connect [user_account] [user_password]"
-    echo "        network-restart"
-    echo "        network-connect [user_account] [user_password] [timeout(optional)]"
-    echo "        network-logout [timeout(optional)]"
-    exit 1
-fi
-
 TRUE=1
 FALSE=0
 return_data=''
@@ -30,6 +21,20 @@ mainUrl="http://10.1.99.100/"
 logoutUrl="http://10.1.99.100:801/eportal/portal/logout"
 unbindUrl="http://10.1.99.100:801/eportal/portal/mac/unbind"
 loginUrl=""
+
+function help() {
+    echo "usage: ./network_manager.sh [Action]"
+    echo "Action: auto-connect [user_account] [user_password]"
+    echo "        network-restart"
+    echo "        network-connect [user_account] [user_password] [timeout(optional)]"
+    echo "        network-logout [timeout(optional)]"
+    echo "        network-interface [ wan | radio ] [ enable | disable ]"
+    echo "        get-uid [timeout(optional)]"
+    echo "        is-endpoint-online [timeout] [destination endpoint]"
+    echo "        is-school-network-endpoint-online [timeout]"
+    echo "help | -help | --help | -h : this help notice"
+    exit 1
+}
 
 function loop() {
     # $1 -> func name
@@ -128,8 +133,54 @@ function is_school_network_api_online() {
     fi
 }
 
-function school_network_get_uid() {
-    
+function is_school_network_endpoint_online() {
+    # return: online status
+    local timeout=2
+    if [ ! -z $1 ]; then
+        timeout=$1
+    fi
+
+    is_endpoint_online $timeout $mainUrl
+    return $?
+}
+
+function check_school_network_endpoint() {
+    # $1 -> times(optional)
+    # $2 -> timeout(optional)
+    # return online status
+
+    local times=1
+    local timeout=0
+
+    if [ ! -z $1 ]; then
+        times=$1
+    fi
+
+    if [ ! -z $2 ]; then
+        timeout=$2
+    fi
+
+    retry is_school_network_endpoint_online $times $timeout
+    return $?
+}
+
+function set_login_url() {
+    # $1 -> user_account
+    # $2 -> user_password
+
+    if [ ! -z $1 ] && [ ! -z $2 ]; then
+        loginUrl="http://10.1.99.100:801/eportal/portal/login?user_account=$1&user_password=$2"
+    else
+        echo 'Error: [user_account] [user_password] is not setted'
+        exit 1
+    fi
+}
+
+function network_get_uid() {
+    # $1 -> timeout
+    # return states -> TRUE/FALSE
+    # return data -> uid
+
     local timeout=1
     if [ ! -z $1 ]; then
         timeout=$1
@@ -148,6 +199,8 @@ function school_network_get_uid() {
 }
 
 function network_interface() {
+    # $1 -> switch (TRUE/FALSE)
+
     case $1 in
         $TRUE)
             ifconfig phy0-sta0 up
@@ -160,11 +213,11 @@ function network_interface() {
     esac
 }
 
-function school_network_logout() {
+function network_logout() {
     # $1 -> timeout
 
     # 如果uid不存在，表示已经登出
-    school_network_get_uid $1
+    network_get_uid $1
     if [ $? -eq $FALSE ]; then
         return $TRUE
     fi
@@ -190,57 +243,14 @@ function school_network_logout() {
     return $TRUE
 }
 
-
-
-#loop loop_func -1 1
-
-# TODO:
-# + trigger: time 06:00
-#   + reboot
-#
-# + trigger: time 06:40
-#   + restart Network
-#   + loop until 7:10
-#       + if (is school network api appear) is $TRUE
-#           + if (is uid logined) is $TRUE <and> (uid is setted uid) is $TRUE
-#               + break
-#           + else
-#               + while
-#                   + 
-#
-#
-
 function network_restart() {
     network_interface $FALSE
     network_interface $TRUE
 }
 
-function is_school_network_endpoint_online() {
-    is_endpoint_online 2 $mainUrl
-    return $?
-}
-
-function check_school_network_endpoint() {
-    # $1 -> times(optional)
-    # $2 -> timeout(optional)
-    # return online status
-
-    local times=1
-    local timeout=0
-
-    if [ ! -z $1 ]; then
-        times=$1
-    fi
-
-    if [ ! -z $2 ]; then
-        timeout=$2
-    fi
-
-    retry is_school_network_endpoint_online $times $timeout
-    return $?
-}
-
 function network_connect() {
+    # $1 -> timeout
+    
     local timeout=1
     if [ ! -z $1 ]; then
         timeout=$1
@@ -256,27 +266,20 @@ function network_connect() {
 
 # main
 
-function action_auto_connect() {
-    network_restart
-    loop network_connect -1 1
+function network_auto_connect_loop() {
+    echo
 }
 
-function set_login_url() {
-    if [ ! -z $1 ] && [ ! -z $2 ]; then
-        loginUrl="http://10.1.99.100:801/eportal/portal/login?user_account=$1&user_password=$2"
-    else
-        echo 'Error: [user_account] [user_password] is not setted'
-        exit 1
-    fi
-    
+function network_auto_connect() {
+    network_restart
+    loop network_auto_connect_loop -1 1
 }
 
 # 有 uid && 没网络 -> 重新登陆网络
-
 case $1 in
     "auto-connect")
         set_login_url $2 $3
-        action_auto_connect
+        network_auto_connect
     ;;
     "network-restart")
         network_restart
@@ -291,11 +294,42 @@ case $1 in
         fi
     ;;
     "network-logout")
-        school_network_logout $2
+        network_logout $2
         if [ $? -eq $TRUE ]; then
             echo 'logout success'
         else
             echo 'logout fail'
         fi
+    ;;
+    "get-uid")
+        network_get_uid $2
+        if [ $? -eq $TRUE ]; then
+            echo $return_data
+        else
+            echo 'NONE'
+        fi
+    ;;
+    "is-endpoint-online")
+        is_endpoint_online $2 $3
+        if [ $? -eq $TRUE ]; then
+            echo 'online'
+        else
+            echo 'offline'
+        fi
+    ;;
+    "is-school-network-endpoint-online")
+        is_school_network_endpoint_online $2
+        if [ $? -eq $TRUE ]; then
+            echo 'online'
+        else
+            echo 'offline'
+        fi
+    ;;
+    "help" | "-help" | "--help" | "-h")
+        help
+    ;;
+    *)
+        echo '[ please check your action command ]'
+        help
     ;;
 esac
