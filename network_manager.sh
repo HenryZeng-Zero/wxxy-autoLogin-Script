@@ -13,8 +13,7 @@
 # -> loop [func name] [times] [timeout]
 # -> retry [func name] [times]
 
-if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
-    echo "please ensure 3 params are entered"
+if [ -z $1 ]; then
     echo "usage: ./network_manager.sh [Action]"
     echo "Action: auto-connect [user_account] [user_password]"
     echo "        network-restart"
@@ -174,6 +173,12 @@ function network_interface() {
 function school_network_logout() {
     # $1 -> timeout
 
+    # 如果uid不存在，表示已经登出
+    school_network_get_uid $1
+    if [ $? -eq $FALSE ]; then
+        return $TRUE
+    fi
+
     local timeout=1
     if [ ! -z $1 ]; then
         timeout=$1
@@ -246,7 +251,10 @@ function check_school_network_endpoint() {
 }
 
 function network_connect() {
-    
+    loginUrl_return=$(curl -s $loginUrl -m $timeout | grep -o 'Radius注销成功')
+    if [ "$logoutUrl_return" != "Radius注销成功" ]; then
+        return $FALSE
+    fi
 }
 
 # main
@@ -267,7 +275,7 @@ function set_login_url() {
 
 # 有 uid && 没网络 -> 重新登陆网络
 
-case $3 in
+case $1 in
     "auto-connect")
         set_login_url $2 $3
         action_auto_connect
@@ -281,5 +289,8 @@ case $3 in
     ;;
     "network-logout")
         school_network_logout $2
+        if [ $? -eq $TRUE ]; then
+            echo 'logout success'
+        fi
     ;;
 esac
