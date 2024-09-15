@@ -17,7 +17,7 @@ if [ -z $1 ]; then
     echo "usage: ./network_manager.sh [Action]"
     echo "Action: auto-connect [user_account] [user_password]"
     echo "        network-restart"
-    echo "        network-connect [user_account] [user_password]"
+    echo "        network-connect [user_account] [user_password] [timeout(optional)]"
     echo "        network-logout [timeout(optional)]"
     exit 1
 fi
@@ -99,23 +99,13 @@ function is_endpoint_online() {
         return $FALSE
     fi
     
-    online_status=$(curl -I -s $test_url -m $timeout | grep 'HTTP/1.1 200 OK' | tr -d '\r')
+    local online_status=$(curl -I -s $test_url -m $timeout | grep 'HTTP/1.1 200 OK' | tr -d '\r')
 
     if [ "${online_status}" == "HTTP/1.1 200 OK" ]; then
         return $TRUE
     else
         return $FALSE
     fi
-}
-
-function network_login() {
-    # TODO
-    loginUrl_return=$(curl -s $loginUrl -m 4 | grep -o '登录成功')
-    if [ "$loginUrl_return" == "登录成功" ]; then
-        echo 'FU'
-    fi
-    curl -I -s $loginUrl -m $timeout | grep 'HTTP/1.1 200 OK' | tr -d '\r'
-    curl $loginUrl
 }
 
 function is_school_network_api_online() {
@@ -184,7 +174,7 @@ function school_network_logout() {
         timeout=$1
     fi
 
-    logoutUrl_return=$(curl -s $logoutUrl -m $timeout | grep -o 'Radius注销成功')
+    local logoutUrl_return=$(curl -s $logoutUrl -m $timeout | grep -o 'Radius注销成功')
     if [ "$logoutUrl_return" != "Radius注销成功" ]; then
         return $FALSE
     fi
@@ -192,7 +182,7 @@ function school_network_logout() {
     sleep $timeout
 
     # TODO: unbindUrl
-    unbindUrl_return=$(curl -s $unbindUrl -m $timeout | grep -o '解绑终端MAC成功')
+    local unbindUrl_return=$(curl -s $unbindUrl -m $timeout | grep -o '解绑终端MAC成功')
     if [ "$unbindUrl_return" != "解绑终端MAC成功" ]; then
         return $FALSE
     fi
@@ -251,10 +241,17 @@ function check_school_network_endpoint() {
 }
 
 function network_connect() {
-    loginUrl_return=$(curl -s $loginUrl -m $timeout | grep -o 'Radius注销成功')
-    if [ "$logoutUrl_return" != "Radius注销成功" ]; then
-        return $FALSE
+    local timeout=1
+    if [ ! -z $1 ]; then
+        timeout=$1
     fi
+
+    local loginUrl_return=$(curl $loginUrl -s -m $timeout | grep -P -o '"result":.?,"' | grep -o '[0-1]')
+    if [ "$loginUrl_return" == "1" ]; then
+        return $TRUE
+    fi
+
+    return $FALSE
 }
 
 # main
@@ -268,7 +265,8 @@ function set_login_url() {
     if [ ! -z $1 ] && [ ! -z $2 ]; then
         loginUrl="http://10.1.99.100:801/eportal/portal/login?user_account=$1&user_password=$2"
     else
-        echo '[user_account] [user_password] is not setted'
+        echo 'Error: [user_account] [user_password] is not setted'
+        exit 1
     fi
     
 }
@@ -285,12 +283,19 @@ case $1 in
     ;;
     "network-connect")
         set_login_url $2 $3
-        network_connect
+        network_connect $4
+        if [ $? -eq $TRUE ]; then
+            echo 'login success'
+        else
+            echo 'login fail'
+        fi
     ;;
     "network-logout")
         school_network_logout $2
         if [ $? -eq $TRUE ]; then
             echo 'logout success'
+        else
+            echo 'logout fail'
         fi
     ;;
 esac
