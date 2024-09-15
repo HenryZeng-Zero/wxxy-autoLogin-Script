@@ -15,8 +15,10 @@
 
 if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
     echo "please ensure 3 params are entered"
-    echo "usage: ./network_manager.sh user_account user_password [Action]"
-    echo "Action: auto-connect | network-restart"
+    echo "usage: ./network_manager.sh [Action]"
+    echo "Action: auto-connect [user_account] [user_password]"
+    echo "        network-restart"
+    echo "        network-logout [timeout]"
     exit 1
 fi
 
@@ -27,7 +29,7 @@ return_data=''
 mainUrl="http://10.1.99.100/"
 logoutUrl="http://10.1.99.100:801/eportal/portal/logout"
 unbindUrl="http://10.1.99.100:801/eportal/portal/mac/unbind"
-loginUrl="http://10.1.99.100:801/eportal/portal/login?user_account=$1&user_password=$2"
+loginUrl=""
 
 function loop() {
     # $1 -> func name
@@ -169,6 +171,8 @@ function network_interface() {
 }
 
 function school_network_logout() {
+    # $1 -> timeout
+
     local timeout=1
     if [ ! -z $1 ]; then
         timeout=$1
@@ -224,7 +228,7 @@ function network_connect() {
     retry is_school_network_online 10 5
     case $? in
         $TRUE)
-            echo 'Online'
+            #TODO
         ;;
         $FALSE)
             network_restart
@@ -239,11 +243,24 @@ function action_auto_connect() {
     loop network_connect -1 1
 }
 
+function set_login_url() {
+    if [ ! -z $1 ] && [ ! -z $2 ]; then
+        loginUrl="http://10.1.99.100:801/eportal/portal/login?user_account=$1&user_password=$2"
+    else
+        echo '[user_account] [user_password] is not setted'
+    fi
+    
+}
+
 case $3 in
     "auto-connect")
+        set_login_url $2 $3
         action_auto_connect
     ;;
     "network-restart")
         network_restart
+    ;;
+    "network-logout")
+        school_network_logout $2
     ;;
 esac
