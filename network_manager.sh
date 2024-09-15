@@ -19,7 +19,7 @@ if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
     echo "Action: auto-connect [user_account] [user_password]"
     echo "        network-restart"
     echo "        network-connect [user_account] [user_password]"
-    echo "        network-logout [timeout(option)]"
+    echo "        network-logout [timeout(optional)]"
     exit 1
 fi
 
@@ -226,6 +226,10 @@ function is_school_network_endpoint_online() {
 }
 
 function check_school_network_endpoint() {
+    # $1 -> times(optional)
+    # $2 -> timeout(optional)
+    # return online status
+
     local times=1
     local timeout=0
 
@@ -238,14 +242,7 @@ function check_school_network_endpoint() {
     fi
 
     retry is_school_network_endpoint_online $times $timeout
-    case $? in
-        $TRUE)
-            #TODO
-        ;;
-        $FALSE)
-            network_restart
-        ;;
-    esac
+    return $?
 }
 
 function network_connect() {
