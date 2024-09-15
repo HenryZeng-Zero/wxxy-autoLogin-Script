@@ -114,26 +114,6 @@ function is_endpoint_online() {
     fi
 }
 
-function is_school_network_api_online() {
-    # $1 -> timeout
-    
-    local timeout=1
-    if [ ! -z $1 ]; then
-        timeout=$1
-    fi
-
-    local uid=$(curl -s -m $timeout $mainUrl | grep -P -o 'uid='.*?';')
-    if [ "$uid" == '' ]; then
-        return $FALSE
-    else
-        uid=${uid//uid=\'/ }
-        uid=${uid//\';/ }
-
-        return_data=$uid
-        return $TRUE
-    fi
-}
-
 function is_school_network_endpoint_online() {
     # return: online status
     local timeout=2
@@ -228,6 +208,27 @@ function network_interface() {
     esac
 
     ifconfig $device $command
+
+    return $TRUE
+}
+
+function network_switch() {
+    # $1 -> wan/radio
+
+    network_interface wan disable
+    network_interface radio disable
+
+    case $1 in
+        "wan")
+            network_interface wan enable
+        ;;
+        "radio")
+            network_interface radio enable
+        ;;
+        *)
+            return $FALSE    
+        ;;
+    esac
 
     return $TRUE
 }
@@ -331,7 +332,12 @@ case $1 in
         fi
     ;;
     "network-switch")
-        
+        network_switch $2
+        if [ $? -eq $TRUE ]; then
+            echo "switch Success"
+        else
+            echo 'Fail'
+        fi
     ;;
     "get-uid")
         network_get_uid $2
@@ -365,3 +371,5 @@ case $1 in
         help
     ;;
 esac
+
+exit 0
