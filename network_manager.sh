@@ -18,7 +18,8 @@ if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
     echo "usage: ./network_manager.sh [Action]"
     echo "Action: auto-connect [user_account] [user_password]"
     echo "        network-restart"
-    echo "        network-logout [timeout]"
+    echo "        network-connect [user_account] [user_password]"
+    echo "        network-logout [timeout(option)]"
     exit 1
 fi
 
@@ -219,13 +220,24 @@ function network_restart() {
     network_interface $TRUE
 }
 
-function is_school_network_online() {
+function is_school_network_endpoint_online() {
     is_endpoint_online 2 $mainUrl
     return $?
 }
 
-function network_connect() {
-    retry is_school_network_online 10 5
+function check_school_network_endpoint() {
+    local times=1
+    local timeout=0
+
+    if [ ! -z $1 ]; then
+        times=$1
+    fi
+
+    if [ ! -z $2 ]; then
+        timeout=$2
+    fi
+
+    retry is_school_network_endpoint_online $times $timeout
     case $? in
         $TRUE)
             #TODO
@@ -234,6 +246,10 @@ function network_connect() {
             network_restart
         ;;
     esac
+}
+
+function network_connect() {
+    
 }
 
 # main
@@ -252,6 +268,8 @@ function set_login_url() {
     
 }
 
+# 有 uid && 没网络 -> 重新登陆网络
+
 case $3 in
     "auto-connect")
         set_login_url $2 $3
@@ -259,6 +277,10 @@ case $3 in
     ;;
     "network-restart")
         network_restart
+    ;;
+    "network-connect")
+        set_login_url $2 $3
+        network_connect
     ;;
     "network-logout")
         school_network_logout $2
