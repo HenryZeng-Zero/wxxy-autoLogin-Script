@@ -29,6 +29,7 @@ function help() {
     echo "        network-connect [user_account] [user_password] [timeout(optional)]"
     echo "        network-logout [timeout(optional)]"
     echo "        network-interface [ wan | radio ] [ enable | disable ]"
+    echo "        network-switch [ wan | radio ]"
     echo "        get-uid [timeout(optional)]"
     echo "        is-endpoint-online [timeout] [destination endpoint]"
     echo "        is-school-network-endpoint-online [timeout]"
@@ -199,18 +200,36 @@ function network_get_uid() {
 }
 
 function network_interface() {
-    # $1 -> switch (TRUE/FALSE)
+    local device=''
+    local command=''
 
     case $1 in
-        $TRUE)
-            ifconfig phy0-sta0 up
-            ifconfig wan up
+        "wan")
+            device="wan"
         ;;
-        $FALSE)
-            ifconfig phy0-sta0 down
-            ifconfig wan down
+        "radio")
+            device="phy0-sta0"
+        ;;
+        *)
+            return $FALSE
         ;;
     esac
+
+    case $2 in
+        "enable")
+            command="up"
+        ;;
+        "disable")
+            command="down"
+        ;;
+        *)
+            return $FALSE
+        ;;
+    esac
+
+    ifconfig $device $command
+
+    return $TRUE
 }
 
 function network_logout() {
@@ -244,8 +263,10 @@ function network_logout() {
 }
 
 function network_restart() {
-    network_interface $FALSE
-    network_interface $TRUE
+    network_interface wan disable
+    network_interface radio disable
+    network_interface wan enable
+    network_interface radio enable
 }
 
 function network_connect() {
@@ -300,6 +321,17 @@ case $1 in
         else
             echo 'logout fail'
         fi
+    ;;
+    "network-interface")
+        network_interface $2 $3
+        if [ $? -eq $TRUE ]; then
+            echo "Success"
+        else
+            echo 'Fail'
+        fi
+    ;;
+    "network-switch")
+        
     ;;
     "get-uid")
         network_get_uid $2
